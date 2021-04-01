@@ -1,0 +1,511 @@
+﻿OS Considerations:
+	1-It's better to use XFS file system for Data disk of HDFS Worker Data nodes.
+	2-It is generally recommended to supply 'noatime' as a mount flag. This flag will direct Linux to stop recording the access times for both files and directories.
+	3-You should live 20% ~ 0% of memory for OS.
+	4-Adjust filesystem settings. Only on Data disk, disabling the access time handling (HDFS does not use it) and reducing the reserved disk space for administrative purposes.
+		a.nano /etc/fstab
+			#add "noatime" like this:
+			/dev/sdb /data01 xfs defaults,noatime 0
+		b.$ mount -‐o remount /data01
+		c.$ mkfs.ext3 -m 0 /dev/sdb			# To Set space during file system creation
+		c.$ tune2fs -m 0 /dev/sdb			# Or tune the filesystem afterwards (only for ext2, ext3, ext4)
+	
+--==============================================================UBUNTU SERVER INSTALLATION======================================================
+
+0-Set the correct time zone and hostname on all nodes also In Hadoop ecosystem your server nodes should not have "_" in their server names, if your servers having "_" on their name, you should use IP address instead of Hostname in core-site.xml, yarn-site.xml and also in each node etc\host file you should add new record to resolve IP address to Hostname
+	timedatectl set-timezone 'Asia/Tehran'
+	sudo hostnamectl set-hostname ubuntu18hd1	#--run this command on first node
+	sudo hostnamectl set-hostname ubuntu18hd2	#--run this command on second node
+	sudo hostnamectl set-hostname ubuntu18hd3	#--run this command on third node
+	
+	#Update DNS server to resolving names to ip or modify local Hosts Files: For each node to communicate with each other by name, you need to map the ip addresses against their name.Remove everything on etc/host file and add all nodes name and ip's:
+	sudo nano /etc/hosts		#--map the ip addresses against their name (copy these line to all nodes).
+	192.168.136.160		ubuntu18hd1
+	192.168.136.161		ubuntu18hd2
+	192.168.136.162		ubuntu18hd3
+1-Use the following command to update your system before initiating a new installation:
+	sudo apt update
+1-Apache Hadoop 3.x fully supports Java 8. The OpenJDK 8 package in Ubuntu contains both the runtime environment and development kit.Type the following command in your terminal to install OpenJDK 8:
+	sudo apt install openjdk-8-jdk -y
+2-Once the installation process is complete, verify the current Java version:
+	java -version; javac -version
+	#You can find Java installation path with bellow commands:
+	readlink -f $(which java) 
+		#or below commaand and ls -l the specified path and dig into the symbol link path
+	whereis java
+		#or
+	update-alternatives --display java
+	
+	#run bellow command and check for JAVA_HOME environment variable existance
+	printenv
+3-Install OpenSSH on Ubuntu: Install the OpenSSH server and client using the following command:
+	sudo apt install openssh-server openssh-client -y
+4-[OPTIONAL]If you are not using LDAP users and group, Set Up a Non-Root User and group for Hadoop Environment. It is advisable to create a non-root user, specifically for the Hadoop environment. A distinct user improves security and helps you manage your cluster more efficiently. To ensure the smooth functioning of Hadoop services, the user should have the ability to establish a passwordless SSH connection with the localhost.
+	Added a new Hadoop User Group, As Hadoop operates over HDFS, a new file system can disturn our own file system on the Ubuntu machine as well. To avoid this collission, we will create a completely separate User Group and assign it to Hadoop so it contains its own permissions. We can add a new user group with this command:
+		addgroup hadoop
+	Utilize the adduser command to create a new Hadoop user (or if you joined to domain, create a new user under AD and name it hduser and skip below command):
+		sudo adduser hduser
+		OR
+		sudo adduser --ingroup hadoop hduser	#add hduser to hadoop group
+5-Switch to the newly created user and enter the corresponding password:
+	su - hduser
+	or
+	su - hduser@lab.com
+6-Enable Passwordless SSH for Hadoop User. The master node in hadoop cluster will use an SSH connection to connect to other nodes with key-pair authentication to actively manage the cluster. For this, we need to set up key-pair ssh authentication on each node. 
+	1-Install SSH on all Hadoop cluster sevrers\nodes (if not installed)
+	2-Create/Use a regular Domain user named "hduser"
+	3-Login with this user to NameNode (master node)
+	4-Generate an SSH key pair and define the location is to be stored in (run this command on all nodes as hduser@lab.com):
+		ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa
+		cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+		chmod 640 ~/.ssh/authorized_keys
+	5-Now you need to copy id_rsa.pub contents to authorized_keys file and then transfer authorized_keys to other remote node (workers) like below (run these commands from each node):
+		From ubuntu18hd1:
+			ssh-copy-id -i ~/.ssh/id_rsa.pub ubuntu18hd2
+			ssh-copy-id -i ~/.ssh/id_rsa.pub ubuntu18hd3
+		From ubuntu18hd2:
+			ssh-copy-id -i ~/.ssh/id_rsa.pub ubuntu18hd1
+			ssh-copy-id -i ~/.ssh/id_rsa.pub ubuntu18hd3
+		From ubuntu18hd3:
+			ssh-copy-id -i ~/.ssh/id_rsa.pub ubuntu18hd1
+			ssh-copy-id -i ~/.ssh/id_rsa.pub ubuntu18hd2
+	6-The new user is now able to SSH without needing to enter a password every time. Verify everything is set up correctly by using the hdoop user to SSH to localhost:
+		ssh localhost
+		ssh ubuntu18hd1
+		ssh ubuntu18hd2
+7-Download hadoop version 3.3 (https://downloads.apache.org/hadoop/common/hadoop-3.3.0/hadoop-3.3.0.tar.gz)
+	wget https://downloads.apache.org/hadoop/common/hadoop-3.3.0/hadoop-3.3.0.tar.gz
+8-Installing Hadoop:
+	1-Temporary add hduser(hduser@lab.com) user or hadoop(hadoop@lab.com) group to local admins(sudoers), if below file does not exists, create it:
+		sudo nano /etc/sudoers.d/domain_admins
+		#Add bellow config
+		%hadoop@lab.com				ALL=(ALL:ALL)	ALL
+	2-Move hadoop-3.3.0.tar.gz to /usr/local folder
+		sudo mv hadoop-3.3.0.tar.gz /usr/local
+	3-decompress hadoop downloaded file under hduser home
+		sudo tar -xzf hadoop-3.3.0.tar.gz
+		#After extracting this tar file you should have new folder named hadoop-3.3.0 under /etc/local folder
+	4-Rename hadoop-3.0.0 folder to hadoop
+		sudo mv hadoop-3.3.0 hadoop
+	5-Change folder ownership of hadoop folder to hduser and hadoop group
+		sudo rm /usr/local/hadoop-3.3.0.tar.gz
+		sudo chown -R hduser@lab.com:hadoop@lab.com /usr/local/hadoop/
+9-Setup system environment variables:
+	create a new user variables with variable name as JAVA_HOME and HADOOP_HOME, and variable values as the path of the bin folder in the Java directory and Hadoop directory, like below bash script.
+	Also you can add these commands to Hadoop user home directory in bash profile file for convinient (nano $HOME/.bashrc)
+		# Configure Hadoop and Java Home
+		HADOOP_HOME="/usr/local/hadoop"
+		JAVA_HOME="/usr/lib/jvm/java-8-openjdk-amd64/jre"
+		HADOOP_INSTALL=$HADOOP_HOME
+		HADOOP_MAPRED_HOME=$HADOOP_HOME
+		HADOOP_COMMON_HOME=$HADOOP_HOME
+		HADOOP_HDFS_HOME=$HADOOP_HOME
+		YARN_HOME=$HADOOP_HOME
+		HADOOP_COMMON_LIB_NATIVE_DIR=$HADOOP_HOME/lib/native
+		HADOOP_OPTS="-Djava.library.path=$HADOOP_HOME/lib/native"
+		PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$JAVA_HOME
+		export HADOOP_HOME
+		export JAVA_HOME
+		export PATH
+		export HADOOP_INSTALL
+		export HADOOP_MAPRED_HOME
+		export HADOOP_COMMON_HOME
+		export HADOOP_HDFS_HOME
+		export YARN_HOME
+		export HADOOP_COMMON_LIB_NATIVE_DIR
+		export HADOOP_OPTS
+		
+		printenv HADOOP_HOME
+		printenv JAVA_HOME
+		printenv PATH
+10-Check that Hadoop can runs:
+	hadoop version
+11-Now we are ready to configure the Hadoop configurations which involves Core, YARN, MapReduce, HDFS configurations.
+  we need to edit some files located in the "/usr/local/hadoop/etc/hadoop" directory where we installed hadoop. The files that need to be edited are:
+	core-site.xml
+	hadoop-env.cmd
+	hdfs-site.xml
+	mapred-site.xml
+	yarn-site.xml
+7-Edit the file core-site.xml in the hadoop directory. Copy this xml property in the configuration section of the file
+  Configuration for master node ("ubuntu18hd1" is the name of currently hadoop master node\NameNode and should resolveable from slave nodes):
+  !!!!! IF YOUR HOST NAME INCLUDE "_" IN IT'S NAME, REPLACE NAME WITH IT'S IP ADDRESS, ELSE YOU WILL GET ERROR ("hadoop datanode unable to start. does not contain a valid host:port authority") WHILE EXECUTING "start-dfs.cmd" !!!!!
+
+  First you should create a base for Hadoop, other temporary directories:
+	sudo mkdir -p /app/hadoop/tmpdata
+	sudo chown -R hduser@lab.com:hadoop@lab.com /app/hadoop
+	sudo chmod -R 750 /app/hadoop
+
+  Next modify core-site.xml:
+<configuration>
+	<property>
+		<name>hadoop.tmp.dir</name>
+		<value>/app/hadoop/tmpdata</value>
+		<description>A base for other temporary directories.</description>
+	</property>
+	<property>
+		<name>fs.defaultFS</name>
+		<value>hdfs://ubuntu18hd1:9000</value>
+		<description>The name of the default file system. A URI whose scheme and authority determine the FileSystem implementation. The uri's scheme determines the config property (fs.SCHEME.impl) naming the FileSystem implementation class.  The uri's authority is used to determine the host, port, etc. for a filesystem.</description>
+   </property>
+   <!--
+   <property> 
+		<name>dfs.permissions</name> 
+		<value>false</value>
+		<description>The default value of the parameter is true, meaning permission checking is enabled. If you set this parameter to false, you turn HDFS permission checking off. Obviously, you can do this in a development environment to overcome frequent permission-related error messages, but in a production cluster, you need to keep it at its default setting.</description>
+	</property> 
+	-->
+	<property>
+		<name>hadoop.security.group.mapping</name>
+		<value>org.apache.hadoop.security.LdapGroupsMapping</value>
+		<description>used for ldap auth</description>
+	</property>
+	<property>
+		<name>hadoop.security.groups.cache.secs</name>
+		<value>300</value>
+		<description>used for ldap auth, This is the config controlling the validity of the entries in the cache containing the user->group mapping. When this duration has expired, then the implementation of the group mapping provider is invoked to get the groups of the user and then cached back. Default:300 </description>
+	</property>
+	<property>
+		<name>hadoop.security.group.mapping.ldap.bind.user</name>
+		<value>cn=Hadoop User,cn=Users,dc=lab,dc=com</value>
+		<description>used for ldap auth, The distinguished name of the user to bind as when connecting to the LDAP server. This may be left blank if the LDAP server supports anonymous binds.</description>
+	</property>
+	<!--
+	<property>
+		<name>hadoop.security.group.mapping.ldap.bind.password.file</name>
+		<value>/usr/local/hadoop/conf/ldap-conn-pass.txt</value>
+		<description>used for ldap auth, The path to a file containing the password of the bind user. IMPORTANT: This file should be readable only by the Unix user running the daemons.</description>
+	</property>
+	-->
+	<property>
+		<name>hadoop.security.group.mapping.ldap.bind.password</name>
+		<value>Armin1355$</value>
+		<description>used for ldap auth</description>
+	</property>
+	<property>
+		<name>hadoop.security.group.mapping.ldap.url</name>
+		<value>ldap://192.168.136.130:389/</value>
+		<description>used for ldap auth,  The URL of the LDAP server to use for resolving user groups when using the LdapGroupsMapping user to group mapping. Example: my.ldap.server:389</description>
+	</property>
+	<property>
+		<name>hadoop.security.group.mapping.ldap.base</name>
+		<value>dc=lab,dc=com</value>
+		<description>used for ldap auth, The search base for the LDAP connection. This is a distinguished name, and will typically be the root of the LDAP directory.</description>
+	</property>
+	<property>
+		<name>hadoop.security.group.mapping.ldap.search.filter.user</name>
+		<value>(&amp;(objectClass=user)(sAMAccountName={0}))</value>
+		<description>used for ldap auth, An additional filter to use when searching for LDAP users. The default will usually be appropriate for Active Directory installations. If connecting to an LDAP server with a non-AD schema, this should be replaced with (&(objectClass=inetOrgPerson)(uid={0}). {0} is a special string used to denote where the username fits into the filter.  Default:(&(objectClass=user)(sAMAccountName={0})) </description>
+	</property>
+	<property>
+		<name>hadoop.security.group.mapping.ldap.search.filter.group</name>
+		<value>(&amp;(objectClass=group)(cn=Hadoop))</value>
+		<description>used for ldap auth, An additional filter to use when searching for LDAP groups. This should be changed when resolving groups against a non-Active Directory installation. posixGroups are currently not a supported group class. Default:(objectClass=group) </description>
+	</property>
+	<property>
+		<name>hadoop.security.group.mapping.ldap.search.attr.member</name>
+		<value>member</value>
+		<description>used for ldap auth, The attribute of the group object that identifies the users that are members of the group. The default will usually be appropriate for any LDAP installation. Default:member </description>
+	</property>
+	<property>
+		<name>hadoop.security.group.mapping.ldap.search.attr.group.name</name>
+		<value>cn</value>
+		<description>used for ldap auth, The attribute of the group object that identifies the group name. The default will usually be appropriate for all LDAP systems. Default:cn </description>
+	</property>
+	<property>
+		<name>hadoop.security.group.mapping.ldap.directory.search.timeout</name>
+		<value>10000</value>
+		<description>used for ldap auth, The attribute applied to the LDAP SearchControl properties to set a maximum time limit when searching and awaiting a result. Set to 0 if infinite wait period is desired. Default is 10 seconds. Units in milliseconds. Default:10000 </description>
+	</property>
+	<property>
+		<name>hadoop.rpc.protection</name>
+		<value>Integrity</value>
+		<description>Used for Kerberos Auth. RPC Encryption information, PLEASE FILL THESE IN ACCORDING TO HADOOP CLUSTER CONFIG, available values are:'Privacy' or 'Integrity' or 'Authenticate'</description>
+	</property> 
+</configuration>
+
+#--Finally execute bellow command to refresh AD groups of HDFS
+	hdfs dfsadmin -refreshUserToGroupsMappings
+	yarn rmadmin -refreshUserToGroupsMappings
+	
+	--Check your current user group resolving
+	hdfs groups
+8-Before editing hdfs-site.xml, please correct two folders in your system: one for namenode directory and another for data directory in all nodes. The folder structures is like below:
+	9.1-Create a folder named "data" in the hadoop directory (/usr/local/hadoop/data)
+	9.2-Create a folder named "dfs" under data directory (/usr/local/hadoop/data/dfs)
+	9.3-Create another folder named "datanode" under previously created "dfs" directory (/usr/local/hadoop/data/dfs/datanode)
+	9.4-Create another folder with the name "namenode" under previously created "dfs" directory (/usr/local/hadoop/data/dfs/namenode)
+	mkdir -p /usr/local/hadoop/data/dfs/datanode /usr/local/hadoop/data/dfs/namenode
+	sudo chown -R hduser@lab.com:hadoop@lab.com /usr/local/hadoop/data
+	sudo chmod -R 750 /usr/local/hadoop/data
+	
+9-Now edit the file hdfs-site.xml and add below property in the configuration (!!Note: The path of namenode and datanode across value would be the path of the datanode and namenode folders you just created.):
+   (Note that we have set the replication factor to 1 since we are creating a single node cluster. in real sites we set it minumum to 3)
+	Configurations for NameNode:
+
+<configuration>
+	<property>
+		<name>dfs.replication</name>
+		<value>2</value>
+		<description>Default block replication. The actual number of replications can be specified when the file is created. The default is used if replication is not specified in create time. It indicates how many times data is replicated in the cluster. You can set 2 to have all the data duplicated on the two nodes (in totaly 3 node scenario, don’t enter a value higher than the actual number of worker nodes you have.) by default. Also Don’t enter a value higher than the actual number of worker nodes.</description>
+	</property>
+	<property>
+		<name>dfs.namenode.name.dir</name>
+		<value>/usr/local/hadoop/data/dfs/namenode</value>
+		<description>USED FOR NameNode ONLY !!! Path on the local filesystem where the NameNode stores the namespace and transactions logs persistently. If this is a comma-delimited list of directories then the name table is replicated in all of the directories, for redundancy.</description>
+	</property>
+	<property>
+		<name>dfs.datanode.data.dir</name>
+		<value>/usr/local/hadoop/data/dfs/datanode</value>
+		<description>USED FOR DataNode ONLY !!! Comma separated list of paths on the local filesystem of a DataNode where it should store its blocks.  If this is a comma-delimited list of directories, then data will be stored in all named directories, typically on different devices. </description>
+	</property>
+</configuration>
+
+10- Edit mapred-site.xml and copy this property in the cofiguration (Set YARN as Job Scheduler)
+
+<configuration>
+   <property>
+       <name>mapreduce.framework.name</name>
+       <value>yarn</value>
+   </property>
+    <property>
+		<name>yarn.app.mapreduce.am.env</name>
+		<value>HADOOP_MAPRED_HOME=$HADOOP_HOME</value>
+    </property>
+    <property>
+		<name>mapreduce.map.env</name>
+		<value>HADOOP_MAPRED_HOME=$HADOOP_HOME</value>
+    </property>
+    <property>
+		<name>mapreduce.reduce.env</name>
+		<value>HADOOP_MAPRED_HOME=$HADOOP_HOME</value>
+    </property>
+	<property>
+		<name>yarn.app.mapreduce.am.resource.mb</name>
+		<value>256</value>
+	</property>
+	<property>
+		<name>mapreduce.map.memory.mb</name>
+		<value>128</value>
+	</property>
+	<property>
+		<name>mapreduce.reduce.memory.mb</name>
+		<value>128</value>
+	</property>
+	<property>
+		<name>mapreduce.job.user.name</name>
+		<value>hduser@lab.com</value>
+	</property>
+	<property>
+		<name>yarn.resourcemanager.address</name>
+		<value>ubuntu18hd1:8032</value>
+	</property>
+   <property>
+		<name>mapreduce.application.classpath</name>
+		<value>$HADOOP_HOME/share/hadoop/mapreduce/*,$HADOOP_HOME/share/hadoop/mapreduce/lib/*,$HADOOP_HOME/share/hadoop/common/*,$HADOOP_HOME/share/hadoop/common/lib/*,$HADOOP_HOME/share/hadoop/yarn/*,$HADOOP_HOME/share/hadoop/yarn/lib/*,$HADOOP_HOME/share/hadoop/hdfs/*,$HADOOP_HOME/share/hadoop/hdfs/lib/*</value>
+	</property>
+</configuration>
+
+11-Edit the file yarn-site.xml and add below property in the configuration (Is a configuration file for ResourceManager and NodeManager)
+Edit yarn-site.xml, which contains the configuration options for YARN. In the value field for the yarn.resourcemanager.hostname, replace "ubuntu18hd1" with the public IP address or Host name of node-master:
+
+<configuration>
+	<property>
+		<name>yarn.acl.enable</name>
+		<value>0</value>
+		<description> Enable ACLs. Defaults to false. </description>
+	</property>
+	<property>
+		<name>yarn.nodemanager.aux-services</name>
+		<value>mapreduce_shuffle</value>
+	</property>
+    <property>
+		<name>yarn.resourcemanager.hostname</name>
+		<value>ubuntu18hd1</value>
+    </property>
+	<property>
+		<name>yarn.nodemanager.resource.memory-mb</name>
+		<value>128</value>
+	</property>
+	<property>
+		<name>yarn.scheduler.maximum-allocation-mb</name>
+		<value>128</value>
+	</property>
+	<property>
+		<name>yarn.scheduler.minimum-allocation-mb</name>
+		<value>256</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.vmem-check-enabled</name>
+		<value>false</value>
+		<description>This property disables virtual-memory checking which can prevent containers from being allocated properly with openjdk if enabled.Memory allocation can be tricky on low RAM nodes because default values are not suitable for nodes with less than 8GB of RAM. We have manually set memory allocation for MapReduce jobs, and provide a sample configuration for 4GB RAM nodes.</description>
+	</property>
+	<property>
+		<name>yarn.nodemanager.auxservices.mapreduce.shuffle.class</name>  
+		<value>org.apache.hadoop.mapred.ShuffleHandler</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.env-whitelist</name>
+		<value>JAVA_HOME,HADOOP_COMMON_HOME,HADOOP_HDFS_HOME,HADOOP_CONF_DIR,CLASSPATH_PREPEND_DISTCACHE,HADOOP_YARN_HOME,HADOOP_MAPRED_HOME</value>
+	</property>
+	<property>
+		<name>yarn.server.resourcemanager.application.expiry.interval</name>
+		<value>60000</value>
+	</property>
+	<property>
+		<name>yarn.log-aggregation-enable</name>
+		<value>true</value>
+	</property>
+	<property>
+		<name>yarn.log-aggregation.retain-seconds</name>
+		<value>-1</value>
+	</property>
+	<property>
+		<name>yarn.application.classpath</name>
+		<value>$HADOOP_CONF_DIR,$HADOOP_COMMON_HOME/share/hadoop/common/*,$HADOOP_COMMON_HOME/share/hadoop/common/lib/*,$HADOOP_HDFS_HOME/share/hadoop/hdfs/*,$HADOOP_HDFS_HOME/share/hadoop/hdfs/lib/*,$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*,$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*,$HADOOP_YARN_HOME/share/hadoop/yarn/*,$HADOOP_YARN_HOME/share/hadoop/yarn/lib/*</value>
+	</property>
+</configuration>
+
+12-Adding Workers\Slave nodes to master node via "worker" file in $HADOOP_HOME/etc/hadoop folder on NameNode\Master Node and Remove localhost if exists (The file workers is used by startup scripts to start required daemons on all nodes. Edit /usr/local/hadoop/etc/hadoop/workers to include all of the nodes like below):
+	sudo nano workers
+	
+	ubuntu18hd2
+	ubuntu18hd3
+13-Edit hadoop-env.sh and :
+	Uncomment line started with "export JAVA_HOME=" and set the path of the java folder infront of it [where your jdk 1.8 is installed but you should remove the trailing /bin/java from java installation path.] (/usr/lib/jvm/java-8-openjdk-amd64/jre).
+17-Check whether hadoop is successfully installed by running this command on cmd:
+	c:\>hadoop version
+	(Since it doesn’t throw error and successfully shows the hadoop version, that means hadoop is successfully installed in the system.)
+19-Copy all file from under "$HADOOP_HOME/etc/hadoop" directory on NameNode\Master node and paste\replace them on all slave nodes
+20-Format the NameNode !!! (Login with hduser@lab.com)
+	(Before formarting name node, ensure the files under <dfs.data.dir>/ directories are deleted on all data nodes, other wise you will get "java.io.IOException: All specified directories have failed to load." Error when executing start-dfs.cmd command !)
+	hdfs namenode -format	#!!!!!!!Do not copy paste this command, type iy by keyboard, because it's UTF8 and linux get syntax error without saying that directly
+	Your Hadoop installation is now configured and ready to run.
+21-Now change the directory in cmd to "sbin" folder of hadoop directory ($HADOOP_HOME/sbin) and Start namenode and datanode with this command  (Boot HDFS) - (Login with hadoop user and Run as Admin):
+	Start the HDFS by running the following script from node-master
+	This will start NameNode and SecondaryNameNode on node-master, and DataNode on node1, node2 and node3, according to the configuration in the workers config file.
+	
+	start-dfs.sh
+22-Now start yarn (from $HADOOP_HOME\sbin) through this command (Login with hadoop user and Run as Admin):
+	start-yarn.sh
+23-To make sure that all services started successfully, we can run the following command under $JAVA_HOME/bin/ folder:
+	jps
+	# in master node you should see bellow processes:
+	1234 NodeManager
+	2345 SecondaryNameNode
+	3456 ResourceManager
+	4567 Jps
+	5678 NameNode
+	6789 DataNode
+	# in slave nodes you should see bellow processes:
+	1234 NodeManager
+	4567 Jps
+	6789 DataNode
+	
+	#You can also check with netstat if Hadoop is listening on the configured ports (9000).
+	sudo netstat -plten | grep java
+	
+	You can get useful information about your hadoop cluster with the below command.
+	hdfs dfsadmin -report
+24-To access information about resource manager current jobs, successful and failed jobs, go to this link in browser:
+	http://ubuntu18hd1:8088/cluster
+25-To check the details about the hdfs namenode,Open this link on browser:
+	http://ubuntu18hd1:9870/
+26-To check the details about the hdfs datanode,Open this link on browser:
+	http://ubuntu18hd2:9864/
+	http://ubuntu18hd3:9864/
+27-Test that you can edit the filesystem by running hadoop fs -mkdir /test, which will make a directory called test in the root directory (it's not important where you run this command):
+	hdfs dfs -mkdir /user
+	or
+	hadoop fs -mkdir /user
+28-To verify if the directory is created in hdfs, we will use 'ls' command which will list the files present
+	hdfs dfs -ls /
+29-Set user and group permission on /user (DO NOT USE FQDN for AD USERS WHEN CREATING USER or CHANGING FILE/FOLDER CHOWN or CHMOD in HADOOP else your AD user will not authorized correctly)
+	#--dont specify domain name for user or groups but be careful of it's case sensitivity with AD names
+	hdfs dfs -chown -R hduser:Hadoop /user
+	hdfs dfs -chmod -R 775 /user
+30-Copy a text file named cinema.csv from your local file system to this folder ("user/hduser")
+	hdfs dfs -mkdir /user/hduser
+	hdfs dfs -copyFromLocal $HOME/users1.csv /user/hduser
+	OR
+	hdfs dfs -put $HOME/users2.csv $HOME/users3.csv /user/hduser/
+31-To verify if the file is copied to the folder, I will use 'ls' command by specifying the folder name which will read the list of files in that folder:
+	hdfs dfs –ls /user/hduser
+32-To view the contents of the file we copied, I will use cat command:
+	hdfs dfs –cat /user/hduser/users1.csv
+33-To Copy file from hdfs to local directory, I will use get command:
+	hdfs dfs -get /user/hduser/users1.csv $HOME/
+34-To remove folder files from hdfs
+	hdfs dfs -rm -R /user/hduser/users1.csv
+35-More useful hdfs commands can be found on below address:
+	https://hadoop.apache.org/docs/r3.1.0/hadoop-project-dist/hadoop-hdfs/HDFSCommands.html
+36-Install HDFS CLI module for convinient administration or use CDATA powershell cmdlet (https://www.cdata.com/drivers/hdfs/powershell/):
+	Install-Module -Name HDFS
+37-open a new powershell window and type winutils.exe directly to verify that our above steps are completed successfully
+38-Install "PolyBase Query Service for External Data" features on SQL Server
+39-Enable PolyBase external feature:
+	SELECT SERVERPROPERTY ('IsPolyBaseInstalled') AS IsPolyBaseInstalled;  
+	exec sp_configure @configname = 'polybase enabled', @configvalue = 1;
+	exec sp_configure @configname = N'allow polybase export', @configvalue = 1;		--Enable INSERT into external table  
+	RECONFIGURE WITH OVERRIDE;
+	exec sp_configure 'polybase enabled'
+	exec sp_configure 'allow polybase export'
+40-Enabaling Hadoop PolyBase feature across instance:
+	sp_configure @configname = 'hadoop connectivity', @configvalue = 7;
+    
+	--@configurevalue options:
+	--0: Disable Hadoop connectivity
+    --1: Hortonworks HDP 1.3 on Windows Server
+    --1: Azure blob storage (WASB[S])
+    --2: Hortonworks HDP 1.3 on Linux
+    --3: Cloudera CDH 4.3 on Linux
+    --4: Hortonworks HDP 2.0 on Windows Server
+    --4: Azure blob storage (WASB[S])
+    --5: Hortonworks HDP 2.0 on Linux
+    --6: Cloudera 5.1 on Linux
+    --7: Hortonworks 2.1 and 2.2 on Linux
+    --7: Hortonworks 2.2 on Windows Server
+    --7: Azure blob storage (WASB[S])
+	GO
+	RECONFIGURE
+	GO
+	exec sp_configure 'hadoop connectivity'
+41-Read "PolyBaseToHadoop.sql" instruction for query from HDFS via sql server
+-----------------------
+Excelent Sources:
+	https://kontext.tech/tag/big-data-on-windows-10
+	https://www.syncfusion.com/ebooks/hadoop-for-windows-succinctly
+	https://docs.microsoft.com/en-us/sql/relational-databases/polybase/polybase-configure-hadoop?view=sql-server-ver15
+	https://36chambers.wordpress.com/category/polybase/page/4/
+Source:
+	https://www.linode.com/docs/guides/how-to-install-and-set-up-hadoop-cluster/
+	https://kontext.tech/column/hadoop/264/configure-hadoop-310-in-a-multi-node-cluster
+	https://kontext.tech/column/hadoop/447/install-hadoop-330-on-windows-10-step-by-step-guide
+	https://www.datasciencecentral.com/profiles/blogs/how-to-install-and-run-hadoop-on-windows-for-beginners
+	https://dev.to/awwsmm/installing-and-running-hadoop-and-spark-on-windows-33kc
+	https://github.com/MuhammadBilalYar/Hadoop-On-Window/wiki/Step-by-step-Hadoop-2.8.0-installation-on-Window-10
+	https://exitcondition.com/install-hadoop-windows/
+	https://docs.oracle.com/javase/8/docs/technotes/guides/install/config.html
+	http://www.informit.com/articles/article.aspx?p=2755708&seqNum=3
+	https://kontext.tech/column/hadoop/377/latest-hadoop-321-installation-on-windows-10-step-by-step-guide
+	https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_keymanagement
+	https://www.concurrency.com/blog/may-2019/key-based-authentication-for-openssh-on-windows
+	https://translate.google.com/translate?hl=en&sl=ru&u=https://stackoverrun.com/ru/q/9382550&prev=search&pto=aue
+	https://stackoverflow.com/questions/45142320/hadoop-exception-all-specified-directories-are-failed-to-load
+	https://www3.ntu.edu.sg/home/ehchua/programming/howto/Environment_Variables.html
+	https://sharebigdata.wordpress.com/2015/10/28/namenode-ldap-integration/
+	https://docs.cloudera.com/HDPDocuments/HDP3/HDP-3.1.5/installing-ranger/content/set_up_hadoop_group_mapping_for_ldap_ad.html
+	http://beadooper.com/?page_id=263
+	https://linuxconfig.org/how-to-install-hadoop-on-redhat-8-linux
+AD Integration:
+	Sam R. Alapati - Expert Hadoop Administration  Managing, Tuning, and Securing Spark, YARN, and HDFS-Addison-Wesley (2016).pdf > Chapter 15
+	
+	https://www.ibm.com/support/pages/ad-ldap-integration-linux-hadoop-cluster
+	https://www.xplenty.com/blog/5-hadoop-security-projects/
+	https://docs.cloudera.com/HDPDocuments/HDP3/HDP-3.1.5/configuring-proxy-knox/content/example_active_directory_configuration.html
+	https://cwiki.apache.org/confluence/display/KNOX/Using+Apache+Knox+with+ActiveDirectory
+	https://github.com/odpi/security-guide/blob/master/securing-the-hadoop-cluster-perimeter.md
+	https://docs.cloudera.com/documentation/enterprise/5-13-x/topics/cdh_sg_hadoop_security_active_directory_integrate.html
+	https://steveloughran.gitbooks.io/kerberos_and_hadoop/content/sections/what_is_kerberos.html
+	https://steveloughran.gitbooks.io/kerberos_and_hadoop/content/sections/bibliography.html
+	

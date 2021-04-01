@@ -1,0 +1,71 @@
+----------------Source:
+https://github.com/bamcis-io/HDFS
+
+Online installation:
+Install-Module -Name HDFS
+---------------------------------
+
+Syntax:
+Import-Module -Name HDFS
+New-HDFSSession -Namenode ubuntu18hd1 -Port 9000 -Credential (Get-Credential)
+New-HDFSSession -Namenode 192.168.1.2 -Username hduser@lab.com
+
+File System Operations:
+-----------------------
+Once you've stablished a session, you can perform file system operations.
+Sets the owner of the root directory to hduser@lab.com.
+
+Set-HDFSItem -Path "/" -Owner "hduser@lab.com"
+#========
+Deletes the directory /test and all of its children.
+
+Remove-HDFSItem -Path "/test" -Recursive
+#========
+Creates the directory /test.
+
+New-HDFSItem -Path "/test" -ItemType Directory
+#========
+Sets the permissions for /test to 777.
+
+Set-HDFSAcl -Path "/test" -Acl "user::rwx,group::rwx,other::rwx" -Replace
+#========
+Creates a new file with the content of TESTING.
+
+New-HDFSItem -Path "/test/test.txt" -ItemType File -InputObject "TESTING"
+#========
+Creates a new file with the content in c:\backups\sql1.bak in the HDFS path /backups/sql.bak
+
+New-HDFSItem -PAth "/backups/sql.bak" -InputFile c:\backups\sql1.bak
+#========
+Retrieves the content of the test.txt file and encodes the byte stream as UTF8.
+
+Get-HDFSContent -Path "/test/test.txt" -Encoding ([System.Text.Encoding]::UTF8)
+#========
+Adds content to the test.txt file and gets the updated content as UTF8.
+
+Add-HDFSContent -Path "/test/test.txt" -InputObject "`nTEST2`n"
+Get-HDFSContent -Path "/test/test.txt" -Encoding ([System.Text.Encoding]::UTF8)
+#========
+Targets a Specific Namenode
+
+After establishing more than 1 session, this example shows how to target a specific session in the cmdlet.
+
+Get-HDFSContent -Path "/test/test.txt" -Encoding ([System.Text.Encoding]::UTF8) -Session 192.168.1.2
+Get-HDFSContent -Path "/test/test.txt" -Encoding ([System.Text.Encoding]::UTF8) -Session cdhnode
+
+There are 2 different sessions created with New-HDFSSession, one established with a Namenode at 192.168.1.2 and another with the name cdhnode.
+#========
+Renames the test.txt file to test2.txt.
+
+Rename-HDFSItem -Path "/test/test.txt" -NewName "/test/test2.txt" -Verbose
+
+Gets the current home directory.
+
+Get-HDFSHomeDirectory
+#========
+Extended Attribute Cmdlets
+
+Set-HDFSXAttr -Path "/" -Name "user.test" -Value "Test3" -Flag Create
+Get-HDFSXAttr -ListAvailable -Path "/"
+Get-HDFSXAttr -Path "" -Names "user.test" -Encoding TEXT
+Remove-HDFSXAttr -Path "" -Name "user.test"

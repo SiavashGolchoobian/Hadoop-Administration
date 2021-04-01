@@ -1,0 +1,373 @@
+﻿--==============================================================WINDOWS SERVER INSTALLATION======================================================
+
+0-In Hadoop ecosystem your server nodes should not have "_" in their server names, if your servers having "_" on their name, you should use IP address instead of Hostname in core-site.xml, yarn-site.xml and also in each node etc\host file you should add new record to resolve IP address to Hostname
+1-Download java version 1.8 or above (https://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
+2-Keep the java folder directly under the local disk directory (C:\Java\jdk1.8.0_152) rather than in Program Files (C:\Program Files\Java\jdk1.8.0_152) as it can create errors afterwards. - change the destination folder from the default
+	0. Create a folder named "java8u22" under c:\java
+	1. Copy the JDK\JRE installer in a local folder on your target system, c:\source for example
+	2. Create a batch file with this code and save it also in c:\source, name it "jre.cmd" for example
+		pushd %~dp0
+		start /wait jdk-8u221-windows-x64.exe INSTALLCFG=%~dp0jre.cfg
+		(Adjust the jdk-8u221-windows-x64.exe part if needed to match the version you actually downloaded)
+	3. Create another file with the code below and name it "jre.cfg", put it also in c:\source
+		INSTALLDIR=C:\java\java8u22
+		INSTALL_SILENT=Enable
+		SPONSORS=Disable
+		NOSTARTMENU=Enable
+		REBOOT=Disable
+		EULA=Disable
+		AUTO_UPDATE=Disable
+		STATIC=Enable
+	4. launch jre.cmd and open the Task Manager, you will see the installer running
+	5. Once the installer is gone, Java JDK\JRE is installed and ready to go
+	OR
+	0. Create a folder named "java8u22" under c:\java
+	1. c:\source\jdk-8u221-windows-x64.exe /s /INSTALLDIR=C:\java\java8u22 /L C:\source\install_jdk-8u221-windows-x64.log
+3-Download hadoop version 3.1 (https://archive.apache.org/dist/hadoop/common/hadoop-3.1.0/hadoop-3.1.0.tar.gz)
+4-Installing Hadoop:
+	1-Create c:\hadoop folder in your server
+	2-Copy downloaded tar file under previous folder on your server and Extract Hadoop tar file (install 7zip on guest sever and run 7zip as admin then extract tar file on c:\hadoop) 
+		or in Powershell(not recommended) execute:tar -xvzf .\hadoop-3.1.0.tar.gz
+	3-After extracting this tar file you should have new folder named hadoop-3.1.0 under c:\hadoop folder
+5-Setup system environment variables:
+	Create a new user variable. Put the Variable_name as HADOOP_HOME and Variable_value as the path of the bin folder where you extracted hadoop as below powershell:
+		[System.Environment]::SetEnvironmentVariable('HADOOP_HOME','c:\hadoop\hadoop-3.1.0',[System.EnvironmentVariableTarget]::User)
+		[System.Environment]::SetEnvironmentVariable('HADOOP_HOME','c:\hadoop\hadoop-3.1.0',[System.EnvironmentVariableTarget]::Machine)
+		[System.Environment]::GetEnvironmentVariable('HADOOP_HOME', 'User')
+		[System.Environment]::GetEnvironmentVariable('HADOOP_HOME', 'Machine')
+		OR
+		c:\>setx HADOOP_HOME "c:\hadoop\hadoop-3.1.0"
+		echo %HADOOP_HOME%
+	Likewise, create a new user variable with variable name as JAVA_HOME and variable value as the path of the bin folder in the Java directory, like below powershell script.
+		[System.Environment]::SetEnvironmentVariable('JAVA_HOME','c:\java\java8u221',[System.EnvironmentVariableTarget]::User)
+		[System.Environment]::SetEnvironmentVariable('JAVA_HOME','c:\java\java8u221',[System.EnvironmentVariableTarget]::Machine)
+		[System.Environment]::GetEnvironmentVariable('JAVA_HOME', 'User')
+		[System.Environment]::GetEnvironmentVariable('JAVA_HOME', 'Machine')
+		OR
+		c:\>setx JAVA_HOME "c:\java\java8u221"
+		echo %JAVA_HOME%
+	Also we need to set Hadoop bin directory and Java bin directory path in system variable path like below powershell commands:
+		[System.Environment]::SetEnvironmentVariable('Path', $env:Path + ';c:\hadoop\hadoop-3.1.0;c:\hadoop\hadoop-3.1.0\bin;c:\java\java8u221;c:\java\java8u221\bin',[System.EnvironmentVariableTarget]::User)
+		[System.Environment]::SetEnvironmentVariable('Path', $env:Path + ';c:\hadoop\hadoop-3.1.0;c:\hadoop\hadoop-3.1.0\bin;c:\java\java8u221;c:\java\java8u221\bin',[System.EnvironmentVariableTarget]::Machine)
+		[System.Environment]::GetEnvironmentVariable('Path', 'User')
+		[System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+		OR
+		c:\>setx -m Path "%Path%;c:\hadoop\hadoop-3.1.0"
+		c:\>setx -m Path "%Path%;c:\java\java8u221"
+		echo %PATH%
+		OR
+		setx PATH "$env:PATH;$env:JAVA_HOME/bin;$env:HADOOP_HOME/bin"
+6-Now we are ready to configure the Hadoop configurations which involves Core, YARN, MapReduce, HDFS configurations.
+  we need to edit some files located in the "c:\hadoop\hadoop-3.1.0\etc\hadoop" directory where we installed hadoop. The files that need to be edited are:
+	core-site.xml
+	hadoop-env.cmd
+	hdfs-site.xml
+	mapred-site.xml
+	yarn-site.xml
+7-Edit the file core-site.xml in the hadoop directory. Copy this xml property in the configuration section of the file
+  Configuration for master node ("wincore2019hd1" is the name of currently hadoop master node\NameNode and should resolveable from slave nodes):
+  !!!!! IF YOUR HOST NAME INCLUDE "_" IN IT'S NAME, REPLACE NAME WITH IT'S IP ADDRESS, ELSE YOU WILL GET ERROR ("hadoop datanode unable to start. does not contain a valid host:port authority") WHILE EXECUTING "start-dfs.cmd" !!!!!
+<configuration>
+   <property>
+		<name>fs.defaultFS</name>
+		<value>hdfs://wincore2019hd1:9000</value>
+		<description>The name of the default file system. A URI whose scheme and authority determine the FileSystem implementation. The uri's scheme determines the config property (fs.SCHEME.impl) naming the FileSystem implementation class.  The uri's authority is used to determine the host, port, etc. for a filesystem.</description>
+   </property>
+   <property> 
+		<name>dfs.permissions</name> 
+		<value>false</value> 
+	</property> 
+</configuration>
+
+8-Before editing hdfs-site.xml, please correct two folders in your system: one for namenode directory and another for data directory. The folder structures is like below:
+	9.1-Create a folder named "data" in the hadoop directory (c:\hadoop\data)	--(under c:\hadoop\hadoop-3.1.0)
+	9.2-Create a folder named "dfs" under data directory (c:\hadoop\data\dfs)
+	9.3-Create another folder named "datanode" under previously created "dfs" directory (c:\hadoop\data\dfs\datanode)
+	9.4-Create another folder with the name "namenode" under previously created "dfs" directory (c:\hadoop\data\dfs\namenode)
+
+9-Now edit the file hdfs-site.xml and add below property in the configuration (!!Note: The path of namenode and datanode across value would be the path of the datanode and namenode folders you just created.):
+   (Note that we have set the replication factor to 1 since we are creating a single node cluster. in real sites we set it minumum to 3)
+	Configurations for NameNode:
+
+<configuration>
+	<property>
+		<name>dfs.replication</name>
+		<value>2</value>
+		<description>Default block replication. The actual number of replications can be specified when the file is created. The default is used if replication is not specified in create time. It indicates how many times data is replicated in the cluster. You can set 2 to have all the data duplicated on the two nodes by default. Also Don’t enter a value higher than the actual number of worker nodes.</description>
+	</property>
+	<property>
+		<name>dfs.namenode.name.dir</name>
+		<value>file:///C:/Hadoop/data/dfs/namenode</value>
+		<description>USED FOR NameNode ONLY !!! Path on the local filesystem where the NameNode stores the namespace and transactions logs persistently. If this is a comma-delimited list of directories then the name table is replicated in all of the directories, for redundancy.</description>
+	</property>
+	<property>
+		<name>dfs.datanode.data.dir</name>
+		<value>file:///C:/Hadoop/data/dfs/datanode</value>
+		<description>USED FOR DataNode ONLY !!! Comma separated list of paths on the local filesystem of a DataNode where it should store its blocks.  If this is a comma-delimited list of directories, then data will be stored in all named directories, typically on different devices. </description>
+	</property>
+</configuration>
+
+10- Edit mapred-site.xml and copy this property in the cofiguration (Set YARN as Job Scheduler)
+
+<configuration>
+   <property>
+       <name>mapreduce.framework.name</name>
+       <value>yarn</value>
+   </property>
+   <property> 
+		<name>mapreduce.application.classpath</name>
+		<value>%HADOOP_HOME%/share/hadoop/mapreduce/*,%HADOOP_HOME%/share/hadoop/mapreduce/lib/*,%HADOOP_HOME%/share/hadoop/common/*,%HADOOP_HOME%/share/hadoop/common/lib/*,%HADOOP_HOME%/share/hadoop/yarn/*,%HADOOP_HOME%/share/hadoop/yarn/lib/*,%HADOOP_HOME%/share/hadoop/hdfs/*,%HADOOP_HOME%/share/hadoop/hdfs/lib/*</value>
+	</property>
+    <property>
+		<name>yarn.app.mapreduce.am.env</name>
+		<value>HADOOP_MAPRED_HOME=%HADOOP_HOME%</value>
+    </property>
+    <property>
+		<name>mapreduce.map.env</name>
+		<value>HADOOP_MAPRED_HOME=%HADOOP_HOME%</value>
+    </property>
+    <property>
+		<name>mapreduce.reduce.env</name>
+		<value>HADOOP_MAPRED_HOME=%HADOOP_HOME%</value>
+    </property>
+	<property>
+		<name>mapreduce.job.user.name</name>
+		<value>lab\hadoop</value>
+	</property>
+	<property>
+		<name>yarn.resourcemanager.address</name>
+		<value>wincore2019hd1:8032</value>
+	</property>
+</configuration>
+
+11-Edit the file yarn-site.xml and add below property in the configuration (Is a configuration file for ResourceManager and NodeManager)
+Edit yarn-site.xml, which contains the configuration options for YARN. In the value field for the yarn.resourcemanager.hostname, replace "wincore2019hd1" with the public IP address or Host name of node-master:
+
+<configuration>
+	<property>
+		<name>yarn.acl.enable</name>
+		<value>false</value>
+		<description> Enable ACLs. Defaults to false. </description>
+	</property>
+	<property>
+		<name>yarn.nodemanager.aux-services</name>
+		<value>mapreduce_shuffle</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.auxservices.mapreduce.shuffle.class</name>  
+		<value>org.apache.hadoop.mapred.ShuffleHandler</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.env-whitelist</name>
+		<value>JAVA_HOME,HADOOP_COMMON_HOME,HADOOP_HDFS_HOME,HADOOP_CONF_DIR,CLASSPATH_PREPEND_DISTCACHE,HADOOP_YARN_HOME,HADOOP_MAPRED_HOME</value>
+	</property>
+    <property>
+		<name>yarn.resourcemanager.hostname</name>
+		<value>wincore2019hd1</value>
+    </property>
+	<property>
+		<name>yarn.server.resourcemanager.application.expiry.interval</name>
+		<value>60000</value>
+	</property>
+	<property>
+		<name>yarn.log-aggregation-enable</name>
+		<value>true</value>
+	</property>
+	<property>
+		<name>yarn.log-aggregation.retain-seconds</name>
+		<value>-1</value>
+	</property>
+	<property>
+		<name>yarn.application.classpath</name>
+		<value>%HADOOP_CONF_DIR%,%HADOOP_COMMON_HOME%/share/hadoop/common/*,%HADOOP_COMMON_HOME%/share/hadoop/common/lib/*,%HADOOP_HDFS_HOME%/share/hadoop/hdfs/*,%HADOOP_HDFS_HOME%/share/hadoop/hdfs/lib/*,%HADOOP_MAPRED_HOME%/share/hadoop/mapreduce/*,%HADOOP_MAPRED_HOME%/share/hadoop/mapreduce/lib/*,%HADOOP_YARN_HOME%/share/hadoop/yarn/*,%HADOOP_YARN_HOME%/share/hadoop/yarn/lib/*</value>
+	</property>
+</configuration>
+
+12-Adding Workers\Slave nodes to master node via "worker" file in c:\hadoop\hadoop-3.1.0\etc\hadoop folder on NameNode\Master Node (The file workers is used by startup scripts to start required daemons on all nodes. Edit ~/hadoop/etc/hadoop/workers to include all of the nodes like below):
+	wincore2019hd1
+	wincore2019hd2
+	wincore2019hd3
+13-Edit hadoop-env.cmd and :
+	replace %JAVA_HOME% with the path of the java folder where your jdk 1.8 is installed (c:\java\java8u22).
+	append below two lines at the end of file
+		set HADOOP_CONF_DIR=%HADOOP_HOME%\etc\hadoop
+		set HADOOP_SSH_OPTS=Users\hadoop\.ssh\id_rsa
+14-Install Hadoop native IO binary
+	Hadoop on Linux includes optional Native IO support. However Native IO is mandatory on Windows and without it you will not be able to get your installation working. you can download it from https://github.com/kontext-tech/winutils or https://github.com/cdarlint/winutils
+		Download all the files in the following location and save them to the bin folder under Hadoop folder. For my environment, the full path is: c:\hadoop\hadoop-3.1.0\bin.	
+		To include those files, replace the bin folder in hadoop directory with the bin folder provided in this github link.
+		(Note that this patch is specific to the version of Hadoop that you're installing. Patches for other versions can be found on https://github.com/kontext-tech/winutils and https://github.com/cdarlint/winutils and https://github.com/steveloughran/winutils and https://github.com/MuhammadBilalYar/Hadoop-On-Window/blob/master/Hadoop%20Configuration.zip
+		https://github.com/s911415/apache-hadoop-3.1.0-winutils
+15-Download it as zip file. Extract it and copy\replace them on C:\Hadoop\hadoop-3.1.0\bin folder (If you want to save the old bin folder, copy it's original content under a some backup directory in another place).
+16-One more thing to do: copy hadoop-yarn-server-timelineservice-3.1.0.jar from c:\hadoop\hadoop-3.1.0\share\hadoop\yarn\timelineservice to c:\hadoop\hadoop-3.1.0\share\hadoop\yarn (the parent directory).
+17-Check whether hadoop is successfully installed by running this command on cmd:
+	c:\>hadoop version
+	(Since it doesn’t throw error and successfully shows the hadoop version, that means hadoop is successfully installed in the system.)
+18-Set security requirement for cluster environment
+	0-Add hadoop user to local admin group on all nodes and restart the node for applying changes
+	1-Install SSH on all Hadoop cluster sevrers\nodes
+	2-Create a regular Domain user named "Hadoop"
+	3-Login with this user to NameNode (master node)
+	4-On NameNode via powershell generate an SSH key (When generating this key, leave file name as blank and press enter also leave the password field blank so your Hadoop user can communicate unprompted. the public and private keys will be generated under c:\Users\hadoop\.ssh\ folder):
+		ssh-keygen -b 4096
+	5-Remember that private key files are the equivalent of a password should be protected the same way you protect your password. To help with that, use ssh-agent to securely store the private keys within a Windows security context, associated with your Windows login. To do that, start the ssh-agent service as Administrator and use ssh-add to store the private key.
+		ssh-add c:\Users\hadoop\.ssh\id_rsa
+		(It is strongly recommended that you back up your private key to a secure location, then delete it from the local system, after adding it to ssh-agent. The private key cannot be retrieved from the agent. If you lose access to the private key, you would have to create a new key pair and update the public key on all systems you interact with.)
+		(After completing this steps, whenever a private key is needed for authentication from this client, ssh-agent will automatically retrieve the local private key and pass it to your SSH client.)
+	6-For deploying the Public Key in each Slave nodes, the public key (c:\Users\hadoop\.ssh\id_rsa.pub content\text) needs to be placed on the slave servers into a text file called "authorized_keys" under c:\users\hadoop\.ssh\.
+		Solution #1 (Deploying public key to Slaves via Powershell console on NameNode\MasterNode)
+			# Make sure that the .ssh directory exists in your server's home folder
+			ssh lab\hadoop@wincore2019hd2 mkdir C:\users\hadoop\.ssh\
+
+			# Use scp to copy the public key file generated previously to authorized_keys on your server
+			scp C:\Users\hadoop\.ssh\id_rsa.pub lab\hadoop@wincore2019hd2:C:\Users\hadoop\.ssh\authorized_keys
+
+			# Appropriately ACL the authorized_keys file on your server (Ignore ant errors related to below command)
+			ssh --% lab\hadoop@wincore2019hd2 powershell -c $ConfirmPreference = 'None'; Repair-AuthorizedKeyPermission C:\Users\hadoop\.ssh\authorized_keys
+		
+		Solution #2 (Deploying public key to Slaves manually)
+			Open the public key file in Notepad.  c:\Users\hadoop\.ssh\id_rsa.pub
+			Copy the contents of the file to clipboard.  Ensure you get the entire file.
+			Connect to the Slave server (using hadoop user credentials to coonect to slave ervers)
+			Navigate to your profile folder on the server, such as C:\Users\hadoop\
+			Look for a .ssh folder under C:\Users\hadoop\. If one doesn't exist, create it (Note, Windows Explorer won't let you create the folder with the name ".ssh".  Instead, use ".ssh." with an extra dot at the end.  The extra dot will be removed, and you'll have a folder correctly named .ssh)
+			In the .ssh folder, create a new text document named "authorized_keys" (Note, this file has no extension) and open it with Notepad (If the file already exists, just open it.)
+			In Notepad, paste the key you copied earlier and save the file.  If there was already a key in this file, paste your key onto a new line below the existing one.
+			Test the ssh from namednode\masternode to slave node by SSH command, it should not ask for password anymore.
+		
+		For Local Admin Group users follow below construction (If hadoop user joined to Local Admin group, Ignore above solutions and follow only below construction):
+		If the user account on the server you are connecting to is in the local Administrators group, the public key must be placed in the C:\ProgramData\ssh\administrators_authorized_keys instead of the user's .ssh folder.
+			Solution #3
+				# Make sure that the .ssh directory exists in your server's home folder
+				ssh lab\hadoop@wincore2019hd2 mkdir C:\ProgramData\ssh\
+
+				# Use scp to copy the public key file generated previously to authorized_keys on your server
+				scp C:\Users\hadoop\.ssh\id_rsa.pub lab\hadoop@wincore2019hd2:C:\ProgramData\ssh\administrators_authorized_keys
+
+				Connect to each Slave node and Use the below PowerShell script to set the correct permissions on the file
+					$acl = Get-Acl C:\ProgramData\ssh\administrators_authorized_keys
+					$acl.SetAccessRuleProtection($true, $false)
+					$administratorsRule = New-Object system.security.accesscontrol.filesystemaccessrule("Administrators","FullControl","Allow")
+					$systemRule = New-Object system.security.accesscontrol.filesystemaccessrule("SYSTEM","FullControl","Allow")
+					$acl.SetAccessRule($administratorsRule)
+					$acl.SetAccessRule($systemRule)
+					$acl | Set-Acl
+
+			Solution #4
+				Open the public key file in Notepad.  c:\Users\hadoop\.ssh\id_rsa.pub
+				Copy the contents of the file to clipboard.  Ensure you get the entire file.
+				Connect to the Slave server (using hadoop user credentials to coonect to slave ervers)
+				Navigate to C:\ProgramData\ folder on the server
+				Look for a ssh folder under C:\ProgramData\ssh\. If one doesn't exist, create it (attend that folder name should be "ssh" not ".ssh")
+				In the ssh folder, create a new text document named "administrators_authorized_keys" (Note, this file has no extension) and open it with Notepad (If the file already exists, just open it.)
+				In Notepad, paste the key you copied earlier and save the file.  If there was already a key in this file, paste your key onto a new line below the existing one.
+				Use the below PowerShell script to set the correct permissions on the file
+					$acl = Get-Acl C:\ProgramData\ssh\administrators_authorized_keys
+					$acl.SetAccessRuleProtection($true, $false)
+					$administratorsRule = New-Object system.security.accesscontrol.filesystemaccessrule("Administrators","FullControl","Allow")
+					$systemRule = New-Object system.security.accesscontrol.filesystemaccessrule("SYSTEM","FullControl","Allow")
+					$acl.SetAccessRule($administratorsRule)
+					$acl.SetAccessRule($systemRule)
+					$acl | Set-Acl
+				Test the ssh from namednode\masternode to slave node by SSH command, it should not ask for password anymore.
+			
+	7-Set hadoop user as C:\Hadoop Folder Ownership on all nodes
+		Set-NTFSOwner C:\Hadoop -Account 'LAB\Hadoop'
+	8-Add hadoop user to C:\Hadoop folder as Full Control permissions
+		Add-NTFSAccess -Path C:\Hadoop -Account 'LAB\Hadoop' -AccessRights 'Fullcontrol' -PassThru
+19-Copy all file from under "c:\hadoop\hadoop-3.1.0\etc\hadoop" directory on NameNode\Master node and paste\replace them on all slave nodes
+20-Format the NameNode !!! (Login with hadoop user and Run as Admin)
+	(Before formarting name node, ensure the files under <dfs.data.dir>/ directories are deleted on all data nodes, other wise you will get "java.io.IOException: All specified directories have failed to load." Error when executing start-dfs.cmd command !)
+	hdfs namenode –format
+	#Warning! hadoop-3.2.1 on windows has a bug that you can fix it as below (deribed here https://kontext.tech/column/hadoop/377/latest-hadoop-321-installation-on-windows-10-step-by-step-guide)
+		1-Please download corrected file from https://github.com/FahaoTang/big-data/blob/master/hadoop-hdfs-3.2.1.jar 
+		2-Then rename the file name hadoop-hdfs-3.2.1.jar to hadoop-hdfs-3.2.1.bk in folder %HADOOP_HOME%\share\hadoop\hdfs.
+		3-Copy downloaded hadoop-hdfs-3.2.1.jar file to %HADOOP_HOME%\share\hadoop\hdfs
+	Your Hadoop installation is now configured and ready to run.
+21-Now change the directory in cmd to "sbin" folder of hadoop directory (%HADOOP_HOME%\sbin\) and Start namenode and datanode with this command  (Boot HDFS) - (Login with hadoop user and Run as Admin):
+	Start the HDFS by running the following script from node-master
+	This will start NameNode and SecondaryNameNode on node-master, and DataNode on node1, node2 and node3, according to the configuration in the workers config file.
+	
+	start-dfs.cmd
+22-Now start yarn (from %HADOOP_HOME%\sbin) through this command (Login with hadoop user and Run as Admin):
+	start-yarn.cmd
+23-To make sure that all services started successfully, we can run the following command under $JAVA_HOME/bin/ folder:
+	jps.exe
+24-To access information about resource manager current jobs, successful and failed jobs, go to this link in browser:
+	http://localhost:8088/cluster
+25-To check the details about the hdfs namenode,Open this link on browser:
+	http://localhost:9870/
+26-To check the details about the hdfs datanode,Open this link on browser:
+	http://localhost:9864/
+27-Test that you can edit the filesystem by running hadoop fs -mkdir /test, which will make a directory called test in the root directory (it's not important where you run this command):
+	hdfs dfs –mkdir /test
+	or
+	hadoop fs -mkdir /test
+28-To verify if the directory is created in hdfs, we will use 'ls' command which will list the files present
+	hdfs dfs –ls /
+29-Copy a text file named cinema.csv from your local file system to this folder ("test")
+	hdfs dfs -copyFromLocal C:\source\cinema.csv /test
+30-To verify if the file is copied to the folder, I will use 'ls' command by specifying the folder name which will read the list of files in that folder:
+	hdfs dfs –ls /test
+31-To view the contents of the file we copied, I will use cat command:
+	hdfs dfs –cat /test/cinema.csv
+32-To Copy file from hdfs to local directory, I will use get command:
+	hdfs dfs -get /test/cinema.csv C:\Users\hp\Desktop\priyanka
+33-To remove folder files from hdfs
+	hdfs dfs -rm -R /test/cinema.csv
+34-More useful hdfs commands can be found on below address:
+	https://hadoop.apache.org/docs/r3.1.0/hadoop-project-dist/hadoop-hdfs/HDFSCommands.html
+35-Install HDFS CLI module for convinient administration:
+	Install-Module -Name HDFS
+36-open a new powershell window and type winutils.exe directly to verify that our above steps are completed successfully
+37-Install "PolyBase Query Service for External Data" features on SQL Server
+38-Enable PolyBase external feature:
+	SELECT SERVERPROPERTY ('IsPolyBaseInstalled') AS IsPolyBaseInstalled;  
+	exec sp_configure @configname = 'polybase enabled', @configvalue = 1;
+	exec sp_configure @configname = N'allow polybase export', @configvalue = 1;		--Enable INSERT into external table  
+	RECONFIGURE WITH OVERRIDE;
+	exec sp_configure 'polybase enabled'
+	exec sp_configure 'allow polybase export'
+39-Enabaling Hadoop PolyBase feature across instance:
+	sp_configure @configname = 'hadoop connectivity', @configvalue = 7;
+    
+	--@configurevalue options:
+	--0: Disable Hadoop connectivity
+    --1: Hortonworks HDP 1.3 on Windows Server
+    --1: Azure blob storage (WASB[S])
+    --2: Hortonworks HDP 1.3 on Linux
+    --3: Cloudera CDH 4.3 on Linux
+    --4: Hortonworks HDP 2.0 on Windows Server
+    --4: Azure blob storage (WASB[S])
+    --5: Hortonworks HDP 2.0 on Linux
+    --6: Cloudera 5.1 on Linux
+    --7: Hortonworks 2.1 and 2.2 on Linux
+    --7: Hortonworks 2.2 on Windows Server
+    --7: Azure blob storage (WASB[S])
+	GO
+	RECONFIGURE
+	GO
+	exec sp_configure 'hadoop connectivity'
+40-Read "PolyBaseToHadoop.sql" instruction for query from HDFS via sql server
+-----------------------
+Excelent Sources:
+	https://kontext.tech/tag/big-data-on-windows-10
+	https://www.syncfusion.com/ebooks/hadoop-for-windows-succinctly
+	https://docs.microsoft.com/en-us/sql/relational-databases/polybase/polybase-configure-hadoop?view=sql-server-ver15
+	https://36chambers.wordpress.com/category/polybase/page/4/
+Source:
+	https://www.linode.com/docs/guides/how-to-install-and-set-up-hadoop-cluster/
+	https://kontext.tech/column/hadoop/264/configure-hadoop-310-in-a-multi-node-cluster
+	https://kontext.tech/column/hadoop/447/install-hadoop-330-on-windows-10-step-by-step-guide
+	https://www.datasciencecentral.com/profiles/blogs/how-to-install-and-run-hadoop-on-windows-for-beginners
+	https://dev.to/awwsmm/installing-and-running-hadoop-and-spark-on-windows-33kc
+	https://github.com/MuhammadBilalYar/Hadoop-On-Window/wiki/Step-by-step-Hadoop-2.8.0-installation-on-Window-10
+	https://exitcondition.com/install-hadoop-windows/
+	https://docs.oracle.com/javase/8/docs/technotes/guides/install/config.html
+	http://www.informit.com/articles/article.aspx?p=2755708&seqNum=3
+	https://kontext.tech/column/hadoop/377/latest-hadoop-321-installation-on-windows-10-step-by-step-guide
+	https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_keymanagement
+	https://www.concurrency.com/blog/may-2019/key-based-authentication-for-openssh-on-windows
+	https://translate.google.com/translate?hl=en&sl=ru&u=https://stackoverrun.com/ru/q/9382550&prev=search&pto=aue
+	https://stackoverflow.com/questions/45142320/hadoop-exception-all-specified-directories-are-failed-to-load
+	https://www3.ntu.edu.sg/home/ehchua/programming/howto/Environment_Variables.html
