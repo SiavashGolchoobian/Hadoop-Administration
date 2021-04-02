@@ -1,12 +1,17 @@
 hadoop version										#show hadoop version
+hdfs dfs -usage <commandName>						#Show summerized help about a <commandName> bcause --help does not work for commands
+hdfs dfs -help <commandName>						#Show detailed help about a <commandName> bcause --help does not work for commands
 hdfs dfs -mkdir <directory path>					#make directory on hdfs
 hdfs dfs -ls [-R] [-h] <directory path>				#"-h" means huan readable, "-R" means show all sub dirctories recursively
+hdfs dfs -du [-s] [-h]								#show total disk utilization by all nodes."-s" for summerized data, "-h" for human readable.
+hdfs dfs -df [-h]									#show total disk free space on all data nodes. "-h" for human readable.
 hdfs dfs -put <src> <hdfsdest>						#Send file from any source outside of dest hdfs to our dest hdfs storage (this command is advanced vs copyFromLocal)
 hdfs dfs -get <hdfssrc> <dest>						#get/download file from hdfs to any detination.
 hdfs dfs -copyFromLocal <localsrc> <hdfsdest>		#Copy file from local client machine to hdfs storage (This command is limited and simpler vs PUT)
 hdfs dfs -copyToLocal <hdfssource> <localdest>		#get/download file from hdfs to local machine
 hdfs dfs -moveFromLocal <localsrc> <hdfsdest>		#move file from local client machine to hdfs storage and delete that file from local
 hdfs dfs -cat <filepath>							#read and show <filepath> file content
+hdfs dfs -text <filepath>							#read and show <filepath> file content,like cat but also if it's not a text file, it try to show only readable charaters of that file
 hdfs dfs -mv <hdfssrc> <hdfsdest>					#move or rename file in hdfs
 hdfs dfs -cp <hdfssrc> <hdfsdest>					#copy file/folder inside hdfs
 hdfs dfs -rm [-r] <filepath>						#remove file/folder from hdfs. use "-r" to remove recursively all subdirectories
@@ -17,6 +22,27 @@ hdfs dfs -chgrp <group> <filepath>					#change file or folder group ownership on
 hdfs dfs -setrep <n> <filepath>						#change replication factor of <filepath> to <n>
 hdfs dfs -head <filepath>							#read top head lines of <filepath>
 hdfs dfs -tail <filepath>							#read last bottom lines of <filepath>
+hdfs dfs -touch <filepath>							#create a new empty file if not existed or change it's access time if file exists.
+hdfs dfs -stat [%a] [%b] [%g] [%n] [%o] [%r] [%u] [%y] <filepath>							
+													#show sum information/stats about file
+														"%a" permissions
+														"%b" file size in byte
+														"%g" group name of owner
+														"%n" file name
+														"%o" block size
+														"%r" replication
+														"%u" user name of owner
+														"%y" modification date
+hdfs dfs -test [-e] [-d] [-f] [-s] [-r] [-w] [-z] <path> && echo "true"		
+													#like linux test command.
+														"-e" test file existance.
+														"-d" check path is directoy or not.
+														"-f" check path is file or not.
+														"-s" check path is not empty.
+														"-r" check path is exists and has read permission.
+														"-w" check path is exists and has write permission.
+														"-z" check wether the file size is 0 byte or not.
+														and if exists echo "true" to stdout
 hdfs fsck <filepath> -files -blocks -locations		#file system check command show block information of file in data nodes
 
 ---------------------------------------
