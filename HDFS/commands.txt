@@ -1,6 +1,6 @@
 hadoop version										#show hadoop version
 hadoop fs -mkdir <directory path>					#make directory on hdfs
-hadoop fs -ls -Rh <directory path>
+hadoop fs -ls -Rh <directory path>					#h means huan readable, R means show all sub dirctories recursively
 hadoop fs -put <localsrc> <dest>
 hadoop fs -get <src> <localdest>
 hadoop fs -copyFromLocal <localsrc> <hdfsdest>
