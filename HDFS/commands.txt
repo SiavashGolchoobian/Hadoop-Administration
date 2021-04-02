@@ -1,10 +1,23 @@
 hadoop version										#show hadoop version
 hadoop fs -mkdir <directory path>					#make directory on hdfs
-hadoop fs -ls -Rh <directory path>					#h means huan readable, R means show all sub dirctories recursively
-hadoop fs -put <localsrc> <dest>
-hadoop fs -get <src> <localdest>
-hadoop fs -copyFromLocal <localsrc> <hdfsdest>
-hadoop fs -copyToLocal <hdfssource> <localdest>
-hadoop fs -cat <filepath>
+hadoop fs -ls [-R] [-h] <directory path>			#"-h" means huan readable, "-R" means show all sub dirctories recursively
+hadoop fs -put <src> <hdfsdest>						#Send file from any source outside of dest hdfs to our dest hdfs storage (this command is advanced vs copyFromLocal)
+hadoop fs -get <hdfssrc> <dest>						#get/download file from hdfs to any detination.
+hadoop fs -copyFromLocal <localsrc> <hdfsdest>		#Copy file from local client machine to hdfs storage (This command is limited and simpler vs PUT)
+hadoop fs -copyToLocal <hdfssource> <localdest>		#get/download file from hdfs to local machine
+hadoop fs -cat <filepath>							#read and show <filepath> file content
 hadoop fs -mv <src> <dest>
 hadoop fs -cp <rc> <dest>
+hadoop fs -head <filepath>							$read top head lines of <filepath>
+hadoop fs -tail <filepath>							$read last bottom lines of <filepath>
+
+---------------------------------------
+Example01: Copy income.csv file from hdfs to current directory in local client
+	hadoop fs -get /data/incomes/income.csv .
+	OR
+	hadoop fs -copyFromLocal /data/incomes/income.csv .
+	
+Example02: Copy all files from income directory on hdfs to current directory in local client
+	hadoop fs -get /data/incomes/* .
+	OR
+	hadoop fs -copyFromLocal /data/incomes/* .
