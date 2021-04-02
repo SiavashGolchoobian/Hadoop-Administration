@@ -1,0 +1,10 @@
+hadoop version										#show hadoop version
+hadoop fs -mkdir <directory path>					#make directory on hdfs
+hadoop fs -ls -Rh <directory path>
+hadoop fs -put <localsrc> <dest>
+hadoop fs -get <src> <localdest>
+hadoop fs -copyFromLocal <localsrc> <hdfsdest>
+hadoop fs -copyToLocal <hdfssource> <localdest>
+hadoop fs -cat <filepath>
+hadoop fs -mv <src> <dest>
+hadoop fs -cp <rc> <dest>
