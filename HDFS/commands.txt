@@ -1,10 +1,20 @@
 hadoop version										#show hadoop version
+hadoop namenode -format								#format whole hdfs storage and delete all of hdfs files and directories (it's very dangerous command)
+hdfs dfsadmin -safemode get							#query data nodes for any safe mode status
+hdfs dfsadmin -safemode leave						#exit data node form safe mode
+hdfs dfsadmin -report								#print some information about hdfs
+hdfs dfsadmin -setSpaceQuota <n m|g|t|p> <directory>#you can set qouta on a hdfs directory and all subdirectories to do not allow saving more than <n>MB|GB|TB|PB data on that directory (you should attention that this space includes replica usage too)
+hdfs dfsadmin -clrSpaceQuota <directory>
+hdfs dfsadmin -setQuota n <directory>
+hdfs dfsadmin -clrQuota <directory>
+hdfs fsck <filepath> -files -blocks -locations		#file system check command show block information of file in data nodes
 hdfs dfs -usage <commandName>						#Show summerized help about a <commandName> bcause --help does not work for commands
 hdfs dfs -help <commandName>						#Show detailed help about a <commandName> bcause --help does not work for commands
 hdfs dfs -mkdir <directory path>					#make directory on hdfs
 hdfs dfs -ls [-R] [-h] <directory path>				#"-h" means huan readable, "-R" means show all sub dirctories recursively
 hdfs dfs -du [-s] [-h]								#show total disk utilization by all nodes."-s" for summerized data, "-h" for human readable.
 hdfs dfs -df [-h]									#show total disk free space on all data nodes. "-h" for human readable.
+hdfs dfs -count [-v] [-h] <path>					#count total number of directories, files and file size in specified path and all subdirectories. "-v" shows header line. "-h" human readable file size.
 hdfs dfs -put <src> <hdfsdest>						#Send file from any source outside of dest hdfs to our dest hdfs storage (this command is advanced vs copyFromLocal)
 hdfs dfs -get <hdfssrc> <dest>						#get/download file from hdfs to any detination.
 hdfs dfs -copyFromLocal <localsrc> <hdfsdest>		#Copy file from local client machine to hdfs storage (This command is limited and simpler vs PUT)
@@ -23,6 +33,11 @@ hdfs dfs -setrep <n> <filepath>						#change replication factor of <filepath> to
 hdfs dfs -head <filepath>							#read top head lines of <filepath>
 hdfs dfs -tail <filepath>							#read last bottom lines of <filepath>
 hdfs dfs -touch <filepath>							#create a new empty file if not existed or change it's access time if file exists.
+hdfs dfs -appendToFile <localfilepath1> <localfilepath2> <localfilepatN> <hdfsDestFilePath>
+													#append contents of <localfilepath1> then <localfilepath2> and finally <localfilepathN> from local disk to /<hdfsDestFilePath>, if <hdfsDestFilePath> does not exists, hdfs will create it
+hdfs dfs -getmerge <hdfsSrcFilePath1> <hdfsSrcFilePath2> <hdfsSrcFilePathN> <localdest>
+													#merge content of <hdfsSrcFilePath1> to <hdfsSrcFilePathN> files from hdfs and write it to local file on <localdest>
+hdfs dfs -find <folderpath> -name <search_pattern>	#search <folderpath> and all subdirectories to find file name(s) match with <search_pattern>
 hdfs dfs -stat [%a] [%b] [%g] [%n] [%o] [%r] [%u] [%y] <filepath>							
 													#show sum information/stats about file
 														"%a" permissions
@@ -36,14 +51,13 @@ hdfs dfs -stat [%a] [%b] [%g] [%n] [%o] [%r] [%u] [%y] <filepath>
 hdfs dfs -test [-e] [-d] [-f] [-s] [-r] [-w] [-z] <path> && echo "true"		
 													#like linux test command.
 														"-e" test file existance.
-														"-d" check path is directoy or not.
+														"-d" check path is directory or not.
 														"-f" check path is file or not.
 														"-s" check path is not empty.
 														"-r" check path is exists and has read permission.
 														"-w" check path is exists and has write permission.
 														"-z" check wether the file size is 0 byte or not.
 														and if exists echo "true" to stdout
-hdfs fsck <filepath> -files -blocks -locations		#file system check command show block information of file in data nodes
 
 ---------------------------------------
 Example01: Copy income.csv file from hdfs to current directory in local client
@@ -58,3 +72,9 @@ Example02: Copy all files from income directory on hdfs to current directory in 
 
 Exmaple03: Count total lines of file content from hdfs (in this command we cat file from hdfs storgae and pipe it to local linux wc command to count it's lines)
 	hdfs dfs -cat /data/incomes/income.csv | wc -l
+	
+Example04: Write a text file with pipe to hdfs
+	echo "hello world" | hdfs dfs -put - /helloworld.txt
+
+Example05: Search all hdfs directories to find file names start with hello
+	hdfs dfs -find / -name hello*
