@@ -1,0 +1,5 @@
+--To run hdfs command as another user:
+HADOOP_USER_NAME=hdfs hadoop fs -put <localfile> <hdfsdestfile>
+
+--To set hadoop user on client machine, set bellow environment variable
+HADOOP_USER_NAME=hdfs

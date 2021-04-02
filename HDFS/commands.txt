@@ -5,9 +5,16 @@ hadoop fs -put <src> <hdfsdest>						#Send file from any source outside of dest 
 hadoop fs -get <hdfssrc> <dest>						#get/download file from hdfs to any detination.
 hadoop fs -copyFromLocal <localsrc> <hdfsdest>		#Copy file from local client machine to hdfs storage (This command is limited and simpler vs PUT)
 hadoop fs -copyToLocal <hdfssource> <localdest>		#get/download file from hdfs to local machine
+hadoop fs -moveFromLocal <localsrc> <hdfsdest>		#move file from local client machine to hdfs storage and delete that file from local
 hadoop fs -cat <filepath>							#read and show <filepath> file content
-hadoop fs -mv <src> <dest>
-hadoop fs -cp <rc> <dest>
+hadoop fs -mv <hdfssrc> <hdfsdest>					#move or rename file in hdfs
+hadoop fs -cp <hdfssrc> <hdfsdest>					#copy file/folder inside hdfs
+hadoop fs -rm [-r] <filepath>						#remove file/folder from hdfs. use "-r" to remove recursively all subdirectories
+hadoop fs -expunge									#delete hadoop trash (recyclebin), because hadoop by default does not delete files permanently and move it to trash
+hadoop fs -chmod <mode> <filepath>					#change file or folder permissions, <mode> is like linux rules (rwx)
+hadoop fs -chown <user>:<group> <filepath>			#change file or folder ownership like linux.
+hadoop fs -chgrp <group> <filepath>					#change file or folder group ownership only, like linux(this command is simpler version of chown).
+hadoop fs -setrep <n> <filepath>					#change replication factor of <filepath> to <n>
 hadoop fs -head <filepath>							$read top head lines of <filepath>
 hadoop fs -tail <filepath>							$read last bottom lines of <filepath>
 
@@ -21,3 +28,6 @@ Example02: Copy all files from income directory on hdfs to current directory in 
 	hadoop fs -get /data/incomes/* .
 	OR
 	hadoop fs -copyFromLocal /data/incomes/* .
+
+Exmaple03: Count total lines of file content from hdfs (in this command we cat file from hdfs storgae and pipe it to local linux wc command to count it's lines)
+	hadoop fs -cat /data/incomes/income.csv | wc -l
